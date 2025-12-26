@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: spx-smiirl-app
+    ports:
+      - "${PORT:-8080}:8000"
+    volumes:
+      - .:/var/www/html
+    env_file:
+      - .env
+    environment:
+      - PHP_OPCACHE_VALIDATE_TIMESTAMPS=0
+    restart: unless-stopped
+    networks:
+      - spx-network
+
+networks:
+  spx-network:
+    driver: bridge
