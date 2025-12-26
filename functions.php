@@ -246,7 +246,10 @@ function getInstagramFollowers($result)
         );
 
         $result['response']['debug_accounts'] = $accountsData;
+        
+        // Sauvegarder l'erreur dans le cache pour éviter de spammer l'API
         setCache($result['service'], $result);
+        
         return $result;
     }
 
@@ -300,7 +303,10 @@ function getInstagramFollowers($result)
         );
 
         $result['response']['debug_page'] = $pageData;
+        
+        // Sauvegarder l'erreur dans le cache pour éviter de spammer l'API
         setCache($result['service'], $result);
+        
         return $result;
     }
 
@@ -326,9 +332,15 @@ function getInstagramFollowers($result)
         
         if (isset($data['followers_count'])) {
             $result['number'] = (int) $data['followers_count'];
-            $result['username'] = $data['username'] ?? null;
+            if (isset($data['username'])) {
+                $result['username'] = $data['username'];
+            }
+            
             $result = array_merge($result, formatApiResponse($httpCode));
+            
+            // Sauvegarder dans le cache (sans l'info de cache)
             setCache($result['service'], $result);
+            
             return $result;
         }
     }
@@ -351,7 +363,10 @@ function getInstagramFollowers($result)
     );
 
     $result['response']['debug_response'] = $errorData ?? [];
+    
+    // Sauvegarder l'erreur dans le cache pour éviter de spammer l'API
     setCache($result['service'], $result);
+    
     return $result;
 }
 
