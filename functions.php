@@ -1,7 +1,7 @@
 <?php
 /**
  * API Simple pour récupérer des statistiques depuis différents services
- * Renvoie toujours un JSON au format: {"number": 1200}
+ * Bibliothèque de fonctions - Ne pas appeler directement
  */
 
 // Charger les variables d'environnement
@@ -25,14 +25,6 @@ function loadEnv($path = '.env') {
         }
     }
 }
-
-loadEnv();
-
-// Configuration
-header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
-
-$service = $_GET['service'] ?? $_ENV['SERVICE'] ?? 'instagram';
 
 /**
  * Récupère le nombre d'abonnés Instagram
@@ -104,7 +96,3 @@ function getData($service) {
             return ['error' => 'Service non supporté'];
     }
 }
-
-// Récupérer et afficher les données
-$result = getData($service);
-echo json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);

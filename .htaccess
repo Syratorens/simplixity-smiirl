@@ -1,0 +1,6 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # Bloquer l'accès direct au fichier de fonctions
+    RewriteRule ^functions\.php$ - [F,L]
+</IfModule>

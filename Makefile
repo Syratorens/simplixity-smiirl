@@ -54,6 +54,6 @@ shell: ## Accède au shell du conteneur
 	docker-compose exec app sh
 
 show-url: ## Affiche l'URL de l'application
-	@echo "$(GREEN)✓ Application disponible sur http://localhost:$$(grep -E '^PORT=' .env 2>/dev/null | cut -d '=' -f2 || echo '8080')$(NC)"
+	@echo "$(GREEN)✓ Application disponible sur http://localhost:$$(grep -E '^PORT=' .env 2>/dev/null | cut -d '=' -f2 || echo '8080')/smiirl-json-feed.php$(NC)"
 
 .DEFAULT_GOAL := help
