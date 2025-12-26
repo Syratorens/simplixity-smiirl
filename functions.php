@@ -111,7 +111,8 @@ function getInstagramFollowersApiV1($result) {
     }
     
     // Vérifier le cache
-    $cachedData = getCache($result['service'], 120);
+    $cacheLifetime = (int)($_ENV['CACHE_LIFETIME'] ?? 120);
+    $cachedData = getCache($result['service'], $cacheLifetime);
     if ($cachedData !== null) {
         return $cachedData;
     }
@@ -173,90 +174,48 @@ function getInstagramFollowersApiV1($result) {
 
 /**
  * Récupère le nombre d'abonnés Instagram via l'API officielle Graph API v24
- * Nécessite un access token Instagram
- * Utilise 3 requêtes chaînées pour obtenir le followers_count
+ * Nécessite un Page Access Token Instagram
+ * Utilise 2 requêtes chaînées pour obtenir le followers_count
  */
 function getInstagramFollowers($result)
 {
-    $accessToken = $_ENV['INSTAGRAM_ACCESS_TOKEN'] ?? '';
+    $pageAccessToken = $_ENV['INSTAGRAM_PAGE_ACCESS_TOKEN'] ?? '';
 
-    if (empty($accessToken)) {
+    if (empty($pageAccessToken)) {
         $result = array_merge(
             $result,
             formatApiResponse(
                 0,
-                'Access token Instagram manquant',
-                'Configurez INSTAGRAM_ACCESS_TOKEN dans le fichier .env. Obtenez-le sur https://developers.facebook.com/apps/'
+                'Page Access Token Instagram manquant',
+                'Configurez INSTAGRAM_PAGE_ACCESS_TOKEN dans le fichier .env. Obtenez-le sur https://developers.facebook.com/tools/explorer/'
             )
         );
         return $result;
     }
 
-    // Vérifier le cache (2 minutes)
-    $cachedData = getCache($result['service'], 120);
+    // Vérifier le cache
+    $cacheLifetime = (int)($_ENV['CACHE_LIFETIME'] ?? 120);
+    $cachedData = getCache($result['service'], $cacheLifetime);
     if ($cachedData !== null) {
         return $cachedData;
     }
 
-    // ===== ÉTAPE 1 : Récupérer les pages Facebook et le page_access_token =====
-    $accountsUrl = "https://graph.facebook.com/v24.0/me/accounts";
-
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $accountsUrl);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $accessToken
-    ]);
-
-    $accountsResponse = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($httpCode !== 200 || empty($accountsResponse)) {
-        $errorData = json_decode($accountsResponse, true);
-        $errorMessage = 'Étape 1 - Impossible de récupérer les pages Facebook';
-        $suggestion = 'Vérifiez que votre access token a la permission pages_show_list';
-
-        if (isset($errorData['error']['message'])) {
-            $errorMessage .= ' - ' . $errorData['error']['message'];
-        }
-
-        $result = array_merge(
-            $result,
-            formatApiResponse($httpCode, $errorMessage, $suggestion)
-        );
-
-        $result['response']['debug_response'] = $errorData ?? [];
-        setCache($result['service'], $result);
-        return $result;
-    }
-
-    $accountsData = json_decode($accountsResponse, true);
-
-    // Récupérer la première page et son access token
-    if (!isset($accountsData['data'][0]['id']) || !isset($accountsData['data'][0]['access_token'])) {
+    // Récupérer l'ID de la page depuis le token
+    $pageId = $_ENV['INSTAGRAM_PAGE_ID'] ?? '';
+    
+    if (empty($pageId)) {
         $result = array_merge(
             $result,
             formatApiResponse(
-                $httpCode,
-                'Étape 1 - Aucune page Facebook trouvée',
-                'Assurez-vous d\'avoir une page Facebook connectée à votre compte'
+                0,
+                'ID de la page Facebook manquant',
+                'Configurez INSTAGRAM_PAGE_ID dans le fichier .env (l\'ID de votre page Facebook)'
             )
         );
-
-        $result['response']['debug_accounts'] = $accountsData;
-        
-        // Sauvegarder l'erreur dans le cache pour éviter de spammer l'API
-        setCache($result['service'], $result);
-        
         return $result;
     }
 
-    $pageId = $accountsData['data'][0]['id'];
-    $pageAccessToken = $accountsData['data'][0]['access_token'];
-
-    // ===== ÉTAPE 2 : Récupérer l'ID du compte Instagram Business =====
+    // ===== ÉTAPE 1 : Récupérer l'ID du compte Instagram Business =====
     $pageUrl = "https://graph.facebook.com/v24.0/{$pageId}?fields=instagram_business_account";
 
     $ch = curl_init();
@@ -273,8 +232,8 @@ function getInstagramFollowers($result)
 
     if ($httpCode !== 200 || empty($pageResponse)) {
         $errorData = json_decode($pageResponse, true);
-        $errorMessage = 'Étape 2 - Impossible de récupérer le compte Instagram Business';
-        $suggestion = 'Vérifiez que votre page Facebook est bien connectée à un compte Instagram Business';
+        $errorMessage = 'Étape 1 - Impossible de récupérer le compte Instagram Business';
+        $suggestion = 'Vérifiez que votre page Facebook est bien connectée à un compte Instagram Business et que le Page Access Token est valide';
 
         if (isset($errorData['error']['message'])) {
             $errorMessage .= ' - ' . $errorData['error']['message'];
@@ -286,7 +245,10 @@ function getInstagramFollowers($result)
         );
 
         $result['response']['debug_response'] = $errorData ?? [];
+        
+        // Sauvegarder l'erreur dans le cache pour éviter de spammer l'API
         setCache($result['service'], $result);
+        
         return $result;
     }
 
@@ -297,7 +259,7 @@ function getInstagramFollowers($result)
             $result,
             formatApiResponse(
                 $httpCode,
-                'Étape 2 - Aucun compte Instagram Business trouvé',
+                'Étape 1 - Aucun compte Instagram Business trouvé',
                 'Assurez-vous que votre page Facebook est connectée à un compte Instagram Business ou Creator'
             )
         );
@@ -312,7 +274,7 @@ function getInstagramFollowers($result)
 
     $instagramBusinessAccountId = $pageData['instagram_business_account']['id'];
 
-    // ===== ÉTAPE 3 : Récupérer le nombre d'abonnés =====
+    // ===== ÉTAPE 2 : Récupérer le nombre d'abonnés =====
     $followersUrl = "https://graph.facebook.com/v24.0/{$instagramBusinessAccountId}?fields=followers_count,username";
 
     $ch = curl_init();
@@ -347,7 +309,7 @@ function getInstagramFollowers($result)
 
     // Erreur lors de la récupération des données
     $errorData = json_decode($followersResponse, true);
-    $errorMessage = 'Étape 3 - Impossible de récupérer le nombre d\'abonnés';
+    $errorMessage = 'Étape 2 - Impossible de récupérer le nombre d\'abonnés';
 
     if (isset($errorData['error']['message'])) {
         $errorMessage .= ' - ' . $errorData['error']['message'];
@@ -358,7 +320,7 @@ function getInstagramFollowers($result)
         formatApiResponse(
             $httpCode,
             $errorMessage,
-            'Vérifiez que votre access token a les permissions instagram_basic et instagram_manage_insights'
+            'Vérifiez que votre Page Access Token a les permissions instagram_basic et instagram_manage_insights'
         )
     );
 
