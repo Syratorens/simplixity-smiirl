@@ -1,20 +1,36 @@
 version: '3.8'
 
 services:
-  app:
+  php:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: spx-smiirl-app
-    ports:
-      - "${PORT:-8080}:8000"
+      dockerfile: ./conf/docker/php.Dockerfile
+    container_name: spx-smiirl-php
     volumes:
       - .:/var/www/html
     env_file:
       - .env
-    environment:
-      - PHP_OPCACHE_VALIDATE_TIMESTAMPS=0
     restart: unless-stopped
+    networks:
+      - spx-network
+
+  nginx:
+    build:
+      context: .
+      dockerfile: ./conf/docker/nginx.Dockerfile
+    container_name: spx-smiirl-nginx
+    depends_on:
+      - php
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${PORT:-8080}:80"
+    volumes:
+      - ./conf/nginx/conf.d:/etc/nginx/conf.d
+      - ./conf/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - .:/var/www/html
+      - ./conf/nginx/log:/var/log/nginx
     networks:
       - spx-network
 

@@ -60,6 +60,8 @@ function getInstagramFollowers() {
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
+
+    $result['http_code'] = $httpCode;
     
     if ($httpCode === 200 && !empty($response)) {
         $json = json_decode($response, true);

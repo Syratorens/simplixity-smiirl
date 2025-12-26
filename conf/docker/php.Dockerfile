@@ -8,11 +8,4 @@ RUN apk add --no-cache \
 # Configurer le répertoire de travail
 WORKDIR /var/www/html
 
-# Copier les fichiers de l'application
-COPY . /var/www/html
-
-# Exposer le port
-EXPOSE 8000
-
-# Commande pour démarrer le serveur PHP built-in
-CMD ["php", "-S", "0.0.0.0:8000", "-t", "/var/www/html"]
+CMD ["php-fpm"]
