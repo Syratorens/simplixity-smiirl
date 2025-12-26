@@ -99,8 +99,9 @@ function formatApiResponse($httpCode, $error = null, $suggestion = null) {
 
 /**
  * Récupère le nombre d'abonnés Instagram
+ * API non-officielle Instagram
  */
-function getInstagramFollowers($result) {
+function getInstagramFollowersApiV1($result) {
     
     $username = $_ENV['INSTAGRAM_USERNAME'] ?? '';
     
@@ -115,7 +116,6 @@ function getInstagramFollowers($result) {
         return $cachedData;
     }
 
-    // Méthode : API non-officielle Instagram
     $url = "https://www.instagram.com/api/v1/users/web_profile_info/?username=" . urlencode($username);
     $result['url'] = $url;
     
@@ -181,8 +181,8 @@ function getData($service) {
 
     
     switch (strtolower($service)) {
-        case 'instagram':
-            return getInstagramFollowers($result);
+        case 'instagram-v1':
+            return getInstagramFollowersApiV1($result);
         
         // Vous pouvez ajouter d'autres services ici
         // case 'twitter':
