@@ -6,6 +6,7 @@ services:
       context: .
       dockerfile: ./conf/docker/php.Dockerfile
     container_name: spx-smiirl-php
+    user: "${LOCAL_UID}:${LOCAL_GID}"
     volumes:
       - .:/var/www/html
     env_file:
