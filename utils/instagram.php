@@ -1,4 +1,7 @@
 <?php
+// =======================================================
+// Fichier d'utils propres à l'intégration d'Instagram
+// =======================================================
 
 /**
  * Récupère le Facebook System User Access Token depuis les variables d'environnement
@@ -117,7 +120,7 @@ function getInstagramBusinessAccountId($pageAccessToken, $pageId, $spxApiRespons
         return $cachedInstagramBusinessAccountId;
     }
     
-    
+
     // Etape 2 : Si non présent, faire l'appel API
     $pageUrl = "https://graph.facebook.com/v24.0/{$pageId}?fields=instagram_business_account";
 

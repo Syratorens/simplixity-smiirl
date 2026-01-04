@@ -5,9 +5,9 @@
  * Renvoie toujours un JSON au format: {"number": 1200}
  */
 
-// Charger les fonctions
-require_once __DIR__ . '/functions.php';
+// Charger les utils et services
 require_once __DIR__ . '/utils/helpers.php';
+require_once __DIR__ . '/services.php';
 
 // Initialiser l'environnement
 loadEnv();
