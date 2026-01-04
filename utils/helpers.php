@@ -1,4 +1,7 @@
 <?php
+// =======================================================
+// Fichier d'utils globaux au projet
+// =======================================================
 
 // Charger les variables d'environnement
 function loadEnv($path = '.env')

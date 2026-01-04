@@ -4,6 +4,60 @@
 // =======================================================
 
 /**
+ * Récupère le Page Access Token depuis le cache s'il est encore valide
+ * 
+ * @param int $lifetime Durée de vie du cache en secondes (défaut: 3600 = 1h)
+ * @return array|null Tableau contenant 'pageId' et 'pageAccessToken', ou null si expiré/inexistant
+ */
+function getPageAccessTokenFromCache($lifetime = 3600)
+{
+    $cacheDir = __DIR__ . '/../cache';
+    $cacheFile = $cacheDir . '/page_access_token.json';
+
+    if (!file_exists($cacheFile)) {
+        return null;
+    }
+
+    $cacheAge = time() - filemtime($cacheFile);
+    if ($cacheAge >= $lifetime) {
+        return null;
+    }
+
+    $cachedData = json_decode(file_get_contents($cacheFile), true);
+    if ($cachedData && isset($cachedData['pageId']) && isset($cachedData['pageAccessToken'])) {
+        return $cachedData;
+    }
+
+    return null;
+}
+
+/**
+ * Sauvegarde le Page Access Token dans le cache
+ * 
+ * @param string $pageId ID de la page Facebook
+ * @param string $pageAccessToken Token d'accès de la page
+ * @return bool Succès de l'opération
+ */
+function setPageAccessTokenToCache($pageId, $pageAccessToken)
+{
+    $cacheDir = __DIR__ . '/../cache';
+
+    // Créer le dossier cache s'il n'existe pas
+    if (!is_dir($cacheDir)) {
+        mkdir($cacheDir, 0755, true);
+    }
+
+    $cacheFile = $cacheDir . '/page_access_token.json';
+    $data = [
+        'pageId' => $pageId,
+        'pageAccessToken' => $pageAccessToken,
+        'cached_at' => date('Y-m-d H:i:s')
+    ];
+
+    return file_put_contents($cacheFile, json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT), LOCK_EX) !== false;
+}
+
+/**
  * Récupère le Facebook System User Access Token depuis les variables d'environnement
  * 
  * @param array $spxApiResponse Tableau de réponse de l'API Simplixity
@@ -29,7 +83,7 @@ function getAccessTokenFromEnv($spxApiResponse)
 
 /**
  * Récupère le Page Access Token et l'ID de la page Facebook via l'API Graph
- * ÉTAPE 1 : Appel à /me/accounts pour obtenir les pages Facebook
+ * ÉTAPE 1 : Vérifie d'abord le cache (1h), sinon appel à /me/accounts
  * 
  * @param string $systemAccessToken Token d'accès système Facebook
  * @param array $spxApiResponse Tableau de réponse de l'API Simplixity
@@ -37,6 +91,14 @@ function getAccessTokenFromEnv($spxApiResponse)
  */
 function getAccessPageToken($systemAccessToken, $spxApiResponse)
 {
+    // Étape 1 : Vérifier d'abord le cache (valide 1h)
+    $cachedPageToken = getPageAccessTokenFromCache(3600);
+    
+    if ($cachedPageToken !== null) {
+        return $cachedPageToken;
+    }
+    
+    // Étape 2 : Si pas de cache valide, faire l'appel API
     $accountsUrl = "https://graph.facebook.com/v24.0/me/accounts";
     $facebookApiResponse = [];
 
@@ -97,6 +159,13 @@ function getAccessPageToken($systemAccessToken, $spxApiResponse)
 
     $facebookApiResponse["pageId"] = $accountsData['data'][0]['id'];
     $facebookApiResponse["pageAccessToken"] = $accountsData['data'][0]['access_token'];
+    
+    // Étape 3 : Sauvegarder dans le cache pour 1h
+    setPageAccessTokenToCache(
+        $facebookApiResponse["pageId"],
+        $facebookApiResponse["pageAccessToken"]
+    );
+    
     return $facebookApiResponse;
 
 }
