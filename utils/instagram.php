@@ -100,7 +100,8 @@ function getAccessPageToken($systemAccessToken, $spxApiResponse)
 
 /**
  * Récupère l'ID du compte Instagram Business lié à la page Facebook
- * ÉTAPE 2 : Appel à /{pageId}?fields=instagram_business_account
+ * ÉTAPE 2 : Vérifie d'abord le .env, sinon appel à /{pageId}?fields=instagram_business_account
+ * Si l'appel API réussit, sauvegarde l'ID dans le .env pour économiser les requêtes futures
  * 
  * @param string $pageAccessToken Token d'accès de la page Facebook
  * @param string $pageId ID de la page Facebook
@@ -109,6 +110,15 @@ function getAccessPageToken($systemAccessToken, $spxApiResponse)
  */
 function getInstagramBusinessAccountId($pageAccessToken, $pageId, $spxApiResponse)
 {
+    // Etape 1 : Vérifier d'abord si l'ID existe déjà dans le .env
+    $cachedInstagramBusinessAccountId = $_ENV['INSTAGRAM_BUSINESS_ACCOUNT_ID'] ?? '';
+    
+    if (!empty($cachedInstagramBusinessAccountId)) {
+        return $cachedInstagramBusinessAccountId;
+    }
+    
+    
+    // Etape 2 : Si non présent, faire l'appel API
     $pageUrl = "https://graph.facebook.com/v24.0/{$pageId}?fields=instagram_business_account";
 
     $ch = curl_init();
@@ -165,7 +175,34 @@ function getInstagramBusinessAccountId($pageAccessToken, $pageId, $spxApiRespons
         return;
     }
 
-    return $pageData['instagram_business_account']['id'];
+    $instagramBusinessAccountId = $pageData['instagram_business_account']['id'];
+    
+
+    // Etape 3 : Sauvegarder l'ID dans le .env pour les prochaines requêtes
+    $envPath = __DIR__ . '/../.env';
+    $envContent = file_get_contents($envPath);
+    
+    // Vérifier si INSTAGRAM_BUSINESS_ACCOUNT_ID existe déjà
+    if (strpos($envContent, 'INSTAGRAM_BUSINESS_ACCOUNT_ID=') !== false) {
+        // Remplacer la valeur existante
+        $envContent = preg_replace(
+            '/INSTAGRAM_BUSINESS_ACCOUNT_ID=.*/m',
+            'INSTAGRAM_BUSINESS_ACCOUNT_ID=' . $instagramBusinessAccountId,
+            $envContent
+        );
+    } else {
+        // Ajouter la nouvelle variable après FACEBOOK_SYSTEM_USER_ACCESS_TOKEN
+        $envContent = preg_replace(
+            '/(FACEBOOK_SYSTEM_USER_ACCESS_TOKEN=.*)/m',
+            "$1\nINSTAGRAM_BUSINESS_ACCOUNT_ID=" . $instagramBusinessAccountId,
+            $envContent
+        );
+    }
+    
+    file_put_contents($envPath, $envContent);
+    $_ENV['INSTAGRAM_BUSINESS_ACCOUNT_ID'] = $instagramBusinessAccountId;
+
+    return $instagramBusinessAccountId;
 }
 
 /**
