@@ -172,43 +172,33 @@ function getInstagramFollowersApiV1($result) {
     return $result;
 }
 
-/**
- * Récupère le nombre d'abonnés Instagram via l'API officielle Graph API v24
- * Nécessite un Facebook System User Access Token
- * Utilise 3 requêtes chaînées pour obtenir le followers_count
- */
-function getInstagramFollowers($result)
-{
+function getAccessToken($spxApiResponse) {
     $accessToken = $_ENV['FACEBOOK_SYSTEM_USER_ACCESS_TOKEN'] ?? '';
 
     if (empty($accessToken)) {
-        $result = array_merge(
-            $result,
+        $spxApiResponse = array_merge(
+            $spxApiResponse,
             formatApiResponse(
                 0,
                 'Facebook System User Access Token manquant',
                 'Configurez FACEBOOK_SYSTEM_USER_ACCESS_TOKEN dans le fichier .env'
             )
         );
-        return $result;
     }
 
-    // Vérifier le cache
-    $cacheLifetime = (int)($_ENV['CACHE_LIFETIME'] ?? 120);
-    $cachedData = getCache($result['service'], $cacheLifetime);
-    if ($cachedData !== null) {
-        return $cachedData;
-    }
+    return $accessToken;
+}
 
-    // ===== ÉTAPE 1 : Récupérer les pages Facebook et le page_access_token =====
+function getAccessPageToken($systemAccessToken, $spxApiResponse) {
     $accountsUrl = "https://graph.facebook.com/v24.0/me/accounts";
+    $facebookApiResponse = [];
 
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $accountsUrl);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 30);
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $accessToken
+        'Authorization: Bearer ' . $systemAccessToken
     ]);
 
     $accountsResponse = curl_exec($ch);
@@ -224,25 +214,25 @@ function getInstagramFollowers($result)
             $errorMessage .= ' - ' . $errorData['error']['message'];
         }
 
-        $result = array_merge(
-            $result,
+        $spxApiResponse = array_merge(
+            $spxApiResponse,
             formatApiResponse($httpCode, $errorMessage, $suggestion)
         );
 
-        $result['response']['debug_response'] = $errorData ?? [];
-        
+        $spxApiResponse['response']['debug_response'] = $errorData ?? [];
+
         // Sauvegarder l'erreur dans le cache pour éviter de spammer l'API
-        setCache($result['service'], $result);
-        
-        return $result;
+        setCache($spxApiResponse['service'], $spxApiResponse);
+
+        return;
     }
 
     $accountsData = json_decode($accountsResponse, true);
 
     // Récupérer la première page et son access token
     if (!isset($accountsData['data'][0]['id']) || !isset($accountsData['data'][0]['access_token'])) {
-        $result = array_merge(
-            $result,
+        $spxApiResponse = array_merge(
+            $spxApiResponse,
             formatApiResponse(
                 $httpCode,
                 'Étape 1 - Aucune page Facebook trouvée',
@@ -250,18 +240,22 @@ function getInstagramFollowers($result)
             )
         );
 
-        $result['response']['debug_accounts'] = $accountsData;
-        
+        $spxApiResponse['response']['debug_accounts'] = $accountsData;
+
         // Sauvegarder l'erreur dans le cache pour éviter de spammer l'API
-        setCache($result['service'], $result);
-        
-        return $result;
+        setCache($spxApiResponse['service'], $spxApiResponse);
+
+        return;
     }
 
-    $pageId = $accountsData['data'][0]['id'];
-    $pageAccessToken = $accountsData['data'][0]['access_token'];
+    $facebookApiResponse["pageId"] = $accountsData['data'][0]['id'];
+    $facebookApiResponse["pageAccessToken"] = $accountsData['data'][0]['access_token'];
+    return $facebookApiResponse;
 
-    // ===== ÉTAPE 2 : Récupérer l'ID du compte Instagram Business =====
+}
+
+function getInstagramBusinessAccountId($pageAccessToken, $pageId, $spxApiResponse)
+{
     $pageUrl = "https://graph.facebook.com/v24.0/{$pageId}?fields=instagram_business_account";
 
     $ch = curl_init();
@@ -285,24 +279,24 @@ function getInstagramFollowers($result)
             $errorMessage .= ' - ' . $errorData['error']['message'];
         }
 
-        $result = array_merge(
-            $result,
+        $$spxApiResponse = array_merge(
+            $spxApiResponse,
             formatApiResponse($httpCode, $errorMessage, $suggestion)
         );
 
-        $result['response']['debug_response'] = $errorData ?? [];
-        
+        $spxApiResponse['response']['debug_response'] = $errorData ?? [];
+
         // Sauvegarder l'erreur dans le cache pour éviter de spammer l'API
-        setCache($result['service'], $result);
-        
-        return $result;
+        setCache($spxApiResponse['service'], $spxApiResponse);
+
+        return;
     }
 
     $pageData = json_decode($pageResponse, true);
 
     if (!isset($pageData['instagram_business_account']['id'])) {
-        $result = array_merge(
-            $result,
+        $$spxApiResponse = array_merge(
+            $spxApiResponse,
             formatApiResponse(
                 $httpCode,
                 'Étape 2 - Aucun compte Instagram Business trouvé',
@@ -310,17 +304,18 @@ function getInstagramFollowers($result)
             )
         );
 
-        $result['response']['debug_page'] = $pageData;
-        
+        $$spxApiResponse['response']['debug_page'] = $pageData;
+
         // Sauvegarder l'erreur dans le cache pour éviter de spammer l'API
-        setCache($result['service'], $result);
-        
-        return $result;
+        setCache($spxApiResponse['service'], $spxApiResponse);
+
+        return;
     }
 
-    $instagramBusinessAccountId = $pageData['instagram_business_account']['id'];
+    return $pageData['instagram_business_account']['id'];
+}
 
-    // ===== ÉTAPE 3 : Récupérer le nombre d'abonnés =====
+function getInstagramFollowersCount($pageAccessToken, $instagramBusinessAccountId, $spxApiResponse) {
     $followersUrl = "https://graph.facebook.com/v24.0/{$instagramBusinessAccountId}?fields=followers_count,username";
 
     $ch = curl_init();
@@ -337,19 +332,19 @@ function getInstagramFollowers($result)
 
     if ($httpCode === 200 && !empty($followersResponse)) {
         $data = json_decode($followersResponse, true);
-        
+
         if (isset($data['followers_count'])) {
-            $result['number'] = (int) $data['followers_count'];
+            $spxApiResponse['number'] = (int) $data['followers_count'];
             if (isset($data['username'])) {
-                $result['username'] = $data['username'];
+                $spxApiResponse['username'] = $data['username'];
             }
-            
-            $result = array_merge($result, formatApiResponse($httpCode));
-            
+
+            $spxApiResponse = array_merge($spxApiResponse, formatApiResponse($httpCode));
+
             // Sauvegarder dans le cache (sans l'info de cache)
-            setCache($result['service'], $result);
-            
-            return $result;
+            setCache($spxApiResponse['service'], $spxApiResponse);
+
+            return $spxApiResponse;
         }
     }
 
@@ -361,8 +356,8 @@ function getInstagramFollowers($result)
         $errorMessage .= ' - ' . $errorData['error']['message'];
     }
 
-    $result = array_merge(
-        $result,
+    $spxApiResponse = array_merge(
+        $spxApiResponse,
         formatApiResponse(
             $httpCode,
             $errorMessage,
@@ -370,28 +365,67 @@ function getInstagramFollowers($result)
         )
     );
 
-    $result['response']['debug_response'] = $errorData ?? [];
-    
+    $spxApiResponse['response']['debug_response'] = $errorData ?? [];
+
     // Sauvegarder l'erreur dans le cache pour éviter de spammer l'API
-    setCache($result['service'], $result);
-    
-    return $result;
+    setCache($spxApiResponse['service'], $spxApiResponse);
+
+    return $spxApiResponse;
+}
+
+/**
+ * Récupère le nombre d'abonnés Instagram via l'API officielle Graph API v24
+ * Nécessite un Facebook System User Access Token
+ * Utilise 3 requêtes chaînées pour obtenir le followers_count
+ */
+function getInstagramFollowers($spxApiResponse)
+{
+    $accessToken = getAccessToken($spxApiResponse);
+    if (empty($accessToken)) {
+        return $spxApiResponse;
+    }
+
+    // ÉTAPE 0 : On récupère le cache et si valide, on retourne directement l'api Reponse mis en cache
+    $cacheLifetime = (int) ($_ENV['CACHE_LIFETIME'] ?? 120);
+    $cachedData = getCache($spxApiResponse['service'], $cacheLifetime);
+    if ($cachedData !== null) {
+        return $cachedData;
+    }
+
+    // Si pas de cache, ou invalide, on continue
+    // ÉTAPE 1 : Récupérer le page_access_token (celui de la première page Facebook liée au compte)
+    $pageTokenData = getAccessPageToken($accessToken, $spxApiResponse);
+    if(!isset($pageTokenData['pageAccessToken']) || !isset($pageTokenData['pageId'])) {
+        return $spxApiResponse; // Erreur déjà formatée dans la fonction
+    }
+
+    // ÉTAPE 2 : Récupérer l'ID du compte Instagram Business =====
+    $pageAccessToken = $pageTokenData['pageAccessToken'];
+    $pageId = $pageTokenData['pageId'];
+    $instagramBusinessAccountId = getInstagramBusinessAccountId($pageAccessToken, $pageId, $spxApiResponse);
+    if (empty($instagramBusinessAccountId)) {
+        return $spxApiResponse; // Erreur déjà formatée dans la fonction
+    }
+
+    // ÉTAPE 3 : Récupérer le nombre d'abonnés =====
+    return getInstagramFollowersCount($pageAccessToken, $instagramBusinessAccountId, $spxApiResponse);
+
 }
 
 /**
  * Récupère les données selon le service demandé
  */
 function getData($service) {
-    $result = [];
-    $result["service"] = $service;
-    $result["number"] = 0;
+    $spxApiResponse = [];
+    $spxApiResponse["service"] = $service;
+    $spxApiResponse["number"] = 0;
 
     
     switch (strtolower($service)) {
         case 'instagram-v1':
-            return getInstagramFollowersApiV1($result);
+            return getInstagramFollowersApiV1($spxApiResponse);
         case 'instagram':
-            return getInstagramFollowers($result);
+            return getInstagramFollowers($spxApiResponse);
         
         // Vous pouvez ajouter d'autres services ici
         // case 'twitter':
@@ -400,7 +434,7 @@ function getData($service) {
         //     return getYoutubeSubscribers();
         
         default:
-            $result['response']['error'] = 'Service non supporté';
-            return $result;
+            $spxApiResponse['response']['error'] = 'Service non supporté';
+            return $spxApiResponse;
     }
 }
