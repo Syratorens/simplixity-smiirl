@@ -1,5 +1,11 @@
 <?php
 
+/**
+ * Récupère le Facebook System User Access Token depuis les variables d'environnement
+ * 
+ * @param array $spxApiResponse Tableau de réponse de l'API Simplixity
+ * @return string Token d'accès système Facebook ou chaîne vide si manquant
+ */
 function getAccessToken($spxApiResponse)
 {
     $accessToken = $_ENV['FACEBOOK_SYSTEM_USER_ACCESS_TOKEN'] ?? '';
@@ -18,6 +24,14 @@ function getAccessToken($spxApiResponse)
     return $accessToken;
 }
 
+/**
+ * Récupère le Page Access Token et l'ID de la page Facebook via l'API Graph
+ * ÉTAPE 1 : Appel à /me/accounts pour obtenir les pages Facebook
+ * 
+ * @param string $systemAccessToken Token d'accès système Facebook
+ * @param array $spxApiResponse Tableau de réponse de l'API Simplixity
+ * @return array|null Tableau contenant 'pageId' et 'pageAccessToken' de la première page trouvée, ou null en cas d'erreur
+ */
 function getAccessPageToken($systemAccessToken, $spxApiResponse)
 {
     $accountsUrl = "https://graph.facebook.com/v24.0/me/accounts";
@@ -84,6 +98,15 @@ function getAccessPageToken($systemAccessToken, $spxApiResponse)
 
 }
 
+/**
+ * Récupère l'ID du compte Instagram Business lié à la page Facebook
+ * ÉTAPE 2 : Appel à /{pageId}?fields=instagram_business_account
+ * 
+ * @param string $pageAccessToken Token d'accès de la page Facebook
+ * @param string $pageId ID de la page Facebook
+ * @param array $spxApiResponse Tableau de réponse de l'API Simplixity
+ * @return string|null ID du compte Instagram Business, ou null en cas d'erreur
+ */
 function getInstagramBusinessAccountId($pageAccessToken, $pageId, $spxApiResponse)
 {
     $pageUrl = "https://graph.facebook.com/v24.0/{$pageId}?fields=instagram_business_account";
@@ -145,6 +168,15 @@ function getInstagramBusinessAccountId($pageAccessToken, $pageId, $spxApiRespons
     return $pageData['instagram_business_account']['id'];
 }
 
+/**
+ * Récupère le nombre d'abonnés du compte Instagram Business
+ * ÉTAPE 3 : Appel à /{instagramBusinessAccountId}?fields=followers_count,username
+ * 
+ * @param string $pageAccessToken Token d'accès de la page Facebook
+ * @param string $instagramBusinessAccountId ID du compte Instagram Business
+ * @param array $spxApiResponse Tableau de réponse de l'API Simplixity
+ * @return array Réponse complète avec le nombre d'abonnés et les informations de cache
+ */
 function getInstagramFollowersCount($pageAccessToken, $instagramBusinessAccountId, $spxApiResponse)
 {
     $followersUrl = "https://graph.facebook.com/v24.0/{$instagramBusinessAccountId}?fields=followers_count,username";
