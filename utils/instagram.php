@@ -6,7 +6,7 @@
  * @param array $spxApiResponse Tableau de réponse de l'API Simplixity
  * @return string Token d'accès système Facebook ou chaîne vide si manquant
  */
-function getAccessToken($spxApiResponse)
+function getAccessTokenFromEnv($spxApiResponse)
 {
     $accessToken = $_ENV['FACEBOOK_SYSTEM_USER_ACCESS_TOKEN'] ?? '';
 

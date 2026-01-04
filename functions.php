@@ -87,7 +87,7 @@ function getInstagramFollowersApiV1($spxApiResponse) {
  */
 function getInstagramFollowers($spxApiResponse)
 {
-    $accessToken = getAccessToken($spxApiResponse);
+    $accessToken = getAccessTokenFromEnv($spxApiResponse);
     if (empty($accessToken)) {
         return $spxApiResponse;
     }
